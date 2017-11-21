@@ -1,0 +1,5 @@
+bin
+lib
+*.mp4
+*.png
+pyvenv.cfg
