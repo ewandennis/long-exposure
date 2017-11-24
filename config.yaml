@@ -1,0 +1,6 @@
+image_scale: 0.5
+frame_limit: 100
+alignment:
+  mode: homography
+  termination_iterations: 50
+  termination_eps: 1e-10

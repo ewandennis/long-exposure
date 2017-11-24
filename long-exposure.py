@@ -3,10 +3,12 @@ import numpy as np
 import sys
 import os.path
 from time import perf_counter
+from strictyaml import load, Map, Str, Float, Int
 
 class TimeKeeper:
     def __init__(self):
         self.times = {}
+        self.start('total')
 
     def _time(self): return perf_counter()
 
@@ -34,13 +36,27 @@ class TimeKeeper:
         avg_time = sum(spans) / n_spans
         return '''{}
     hits: {}
-    avg: {}
-    min; {}
-    max: {}
+    avg: {:.2}
+    min; {:.2}
+    max: {:.2}
 '''.format(task_name, len(spans), avg_time, min(spans), max(spans))
 
     def report(self):
+        self.end('total')
         return '\n'.join([self.task_time(task_name) for task_name in self.times.keys()])
+
+class Config:
+    SCHEMA = Map(dict(
+        image_scale=Float(),
+        frame_limit=Int(),
+        alignment=Map(dict(mode=Str(), termination_iterations=Int(), termination_eps=Float()))
+    ))
+    def __init__(self, path='config.yaml'):
+        yaml_str = open(path, 'r').read()
+        self.cfg = load(yaml_str, Config.SCHEMA).data
+
+    def get(self, key):
+        return self.cfg[key]
 
 class Accumulator:
     """Accumulate pixel values across frames"""
@@ -140,17 +156,21 @@ def filter_frames(stream, filters, frame_limit=0):
 # -----------------------------------------------------------------------------
 
 def main():
+    cfg = Config('config.yaml')
     # Downscaling factor for both input and output.
     # Use this to keep your runtime under control at the cost of resolution.
     # Set to 1 to disable resampling
-    scale = 0.25
+    scale = cfg.get('image_scale')
 
     # Apply this effect to the first N frames only.
-    frame_limit = 5
+    frame_limit = cfg.get('frame_limit')
+
+    align_cfg = cfg.get('alignment')
+    align_iterations = align_cfg['termination_iterations']
+    align_mode = align_cfg['mode']
+    align_termination_eps = align_cfg['termination_eps']
+
     in_filename = sys.argv[1]
-    align_iterations = 100
-    align_mode = 'homography'
-    align_termination_eps = 1e-10
     stream = cv2.VideoCapture(in_filename)
     aligner = Aligner(mode=align_mode, iterations=align_iterations, eps=align_termination_eps)
     resampler = Resampler(scale, scale)
