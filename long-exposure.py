@@ -34,27 +34,30 @@ def filter_frames(stream, filters, frame_limit=0):
 def main():
     cfg = Config('config.yaml')
 
-    align_cfg = cfg.get('alignment')
-    align_iterations = align_cfg['termination_iterations']
-    align_mode = align_cfg['mode']
-    align_termination_eps = align_cfg['termination_eps']
-
-    aligner = Aligner(mode=align_mode, iterations=align_iterations, eps=align_termination_eps)
+    filters = []
 
     # Downscaling factor for both input and output.
     # Use this to keep your runtime under control at the cost of resolution.
     # Set to 1 to disable resampling
     scale = cfg.get('image_scale')
-    resampler = Resampler(scale, scale)
+    filters.append(Resampler(scale, scale))
+
+    align_cfg = cfg.get('alignment')
+    if align_cfg['enabled']:
+        filters.append(Aligner(
+          mode=align_cfg['mode'],
+          iterations=align_cfg['max_iterations'],
+          eps=align_cfg['termination_eps']))
 
     accum = Accumulator()
+    filters.append(accum)
 
     in_filename = sys.argv[1]
     stream = cv2.VideoCapture(in_filename)
 
     print('Aligning and stacking...')
     frame_limit = cfg.get('frame_limit') # Apply this effect to the first N frames only.
-    time_keeper = filter_frames(stream, [resampler, aligner, accum], frame_limit)
+    time_keeper = filter_frames(stream, filters, frame_limit)
 
     print('Calculating mean image...')
     time_keeper.start('mean image')
@@ -62,10 +65,19 @@ def main():
     time_keeper.end('mean image')
 
     base_filename = os.path.basename(os.path.splitext(in_filename)[0])
-    filename = '{}-{}-{}-{}-{}it-{}f.png'.format(base_filename, align_mode, align_termination_eps, scale, align_iterations, frame_limit)
+    filename = '{}-{}-{}-{}-{}it-{}f.png'.format(
+        base_filename,
+        align_cfg['mode'],
+        align_cfg['termination_eps'],
+        scale,
+        align_cfg['max_iterations'],
+        frame_limit
+    )
+
     cv2.imwrite('out/'+filename, result_image) 
 
-    print(time_keeper.report())
+    if cfg.get('dump_stats'):
+        print(time_keeper.report())
 
 if __name__ == '__main__':
     main()

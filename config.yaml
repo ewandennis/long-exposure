@@ -1,6 +1,8 @@
 image_scale: 0.5
-frame_limit: 100
+frame_limit: 5
 alignment:
+  enabled: true
   mode: homography
-  termination_iterations: 50
+  max_iterations: 100
   termination_eps: 1e-10
+dump_stats: false
