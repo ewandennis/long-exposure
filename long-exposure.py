@@ -2,6 +2,45 @@ import cv2
 import numpy as np
 import sys
 import os.path
+from time import perf_counter
+
+class TimeKeeper:
+    def __init__(self):
+        self.times = {}
+
+    def _time(self): return perf_counter()
+
+    def start(self, task_name):
+        if not task_name in self.times:
+            self.times[task_name] = []
+        self.times[task_name].append(self._time())
+
+    def end(self, task_name):
+        if not task_name in self.times:
+            return
+        if len(self.times[task_name]) % 2 != 1:
+            return
+        self.times[task_name].append(self._time())
+
+    def task_time(self, task_name):
+        if not task_name in self.times: return None
+        times = self.times[task_name]
+        n_times = len(times)
+        start_idx = list(range(0, n_times, 2))
+        end_idx = list(range(1, n_times, 2))
+        if len(end_idx) < len(start_idx): start_idx.pop()
+        n_spans = len(start_idx)
+        spans = [times[end_idx[idx]] - times[start_idx[idx]] for idx in range(n_spans)]
+        avg_time = sum(spans) / n_spans
+        return '''{}
+    hits: {}
+    avg: {}
+    min; {}
+    max: {}
+'''.format(task_name, len(spans), avg_time, min(spans), max(spans))
+
+    def report(self):
+        return '\n'.join([self.task_time(task_name) for task_name in self.times.keys()])
 
 class Accumulator:
     """Accumulate pixel values across frames"""
@@ -47,7 +86,7 @@ class Aligner:
 
     def _warp_frame(self, frame, warp_matrix):
         if self.warp_mode == cv2.MOTION_HOMOGRAPHY:
-            return cv2.warpPerspective (frame, warp_matrix, self.shape, flags=cv2.INTER_LINEAR + cv2.WARP_INVERSE_MAP)
+            return cv2.warpPerspective (frame, warp_matrix, self.shape)#, flags=cv2.INTER_LINEAR + cv2.WARP_INVERSE_MAP)
         return cv2.warpAffine(frame, warp_matrix, self.shape, flags=cv2.INTER_LINEAR + cv2.WARP_INVERSE_MAP)
 
     def eat_frame(self, frame):
@@ -77,8 +116,11 @@ class Resampler:
 
 def filter_frames(stream, filters, frame_limit=0):
     frame_count = 0
+    time_keeper = TimeKeeper()
     while True:
+        time_keeper.start('io')
         status, frame = stream.read()
+        time_keeper.end('io')
         frame_count += 1
         if not status or (frame_limit > 0 and frame_count >= frame_limit):
             break
@@ -87,33 +129,44 @@ def filter_frames(stream, filters, frame_limit=0):
 
         input = frame
         for filter in filters:
+            filter_name = filter.__class__.__name__
+            time_keeper.start(filter_name)
             output = filter.eat_frame(input)
+            time_keeper.end(filter_name)
             input = output
 
+    return time_keeper
+
 # -----------------------------------------------------------------------------
-# Downscaling factor for both input and output.
-# Use this to keep your runtime under control at the cost of resolution.
-# Set to 1 to disable resampling
-scale = 0.25
 
-# Apply this effect to the first N frames only.
-frame_limit = 90
+def main():
+    # Downscaling factor for both input and output.
+    # Use this to keep your runtime under control at the cost of resolution.
+    # Set to 1 to disable resampling
+    scale = 0.25
 
-in_filename = sys.argv[1]
-align_iterations = 1000
-align_mode = 'homography'
-align_termination_eps = 1e-10
-stream = cv2.VideoCapture(in_filename)
-aligner = Aligner(mode=align_mode, iterations=align_iterations, eps=align_termination_eps)
-resampler = Resampler(scale, scale)
-accum = Accumulator()
+    # Apply this effect to the first N frames only.
+    frame_limit = 5
+    in_filename = sys.argv[1]
+    align_iterations = 100
+    align_mode = 'homography'
+    align_termination_eps = 1e-10
+    stream = cv2.VideoCapture(in_filename)
+    aligner = Aligner(mode=align_mode, iterations=align_iterations, eps=align_termination_eps)
+    resampler = Resampler(scale, scale)
+    accum = Accumulator()
 
-print('Aligning and stacking...')
-filter_frames(stream, [resampler, aligner, accum], frame_limit)
-print('Calculating mean image...')
-result_image = accum.get_mean_image()
+    print('Aligning and stacking...')
+    times = filter_frames(stream, [resampler, aligner, accum], frame_limit)
+    print('Calculating mean image...')
+    result_image = accum.get_mean_image()
 
-base_filename = os.path.basename(os.path.splitext(in_filename)[0])
-filename = '{}-{}-{}-{}-{}it-{}f.png'.format(base_filename, align_mode, align_termination_eps, scale, align_iterations, frame_limit)
-cv2.imwrite('out/'+filename, result_image) 
+    base_filename = os.path.basename(os.path.splitext(in_filename)[0])
+    filename = '{}-{}-{}-{}-{}it-{}f.png'.format(base_filename, align_mode, align_termination_eps, scale, align_iterations, frame_limit)
+    cv2.imwrite('out/'+filename, result_image) 
+
+    print(times.report())
+
+if __name__ == '__main__':
+    main()
 
