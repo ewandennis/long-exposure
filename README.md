@@ -10,7 +10,7 @@ Produce a single "long exposure" frame from a video file.
 pip3 install -r requirements.txt
 ```
 
-## Running The Thing
+## Running The Thing
 
 ```sh
 python3 long-exposure.py your-video.mp4
