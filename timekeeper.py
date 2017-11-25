@@ -19,7 +19,7 @@ class TimeKeeper:
             return
         self.times[task_name].append(self._time())
 
-    def task_time(self, task_name):
+    def task_summary(self, task_name):
         if not task_name in self.times: return None
         times = self.times[task_name]
         n_times = len(times)
@@ -29,14 +29,18 @@ class TimeKeeper:
         n_spans = len(start_idx)
         spans = [times[end_idx[idx]] - times[start_idx[idx]] for idx in range(n_spans)]
         avg_time = sum(spans) / n_spans
+        return (n_spans, avg_time, min(spans), max(spans), )
+
+    def _format_task_summary(self, task_name, hits, avg, min_time, max_time):
         return '''{}
     hits: {}
     avg: {:.2}
     min; {:.2}
     max: {:.2}
-'''.format(task_name, len(spans), avg_time, min(spans), max(spans))
+'''.format(task_name, hits, avg, min_time, max_time)
 
     def report(self):
         self.end('total')
-        return '\n'.join([self.task_time(task_name) for task_name in self.times.keys()])
+        task_times = ([task_name] + list(self.task_summary(task_name)) for task_name in self.times.keys())
+        return '\n'.join([self._format_task_summary(*time_fields) for time_fields in task_times])
 

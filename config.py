@@ -8,8 +8,12 @@ class Config:
         alignment=Map(dict(enabled=Bool(), mode=Str(), max_iterations=Int(), termination_eps=Float()))
     ))
 
-    def __init__(self, path='config.yaml'):
-        yaml_str = open(path, 'r').read()
+    def __init__(self, file_or_yaml=open('config.yaml', 'r')):
+        if isinstance(file_or_yaml, str):
+            yaml_str = file_or_yaml
+        else:
+            yaml_str = file_or_yaml.read()
+            file_or_yaml.close()
         self.cfg = load(yaml_str, Config.SCHEMA).data
 
     def get(self, key):

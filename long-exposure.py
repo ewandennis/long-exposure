@@ -32,7 +32,7 @@ def filter_frames(stream, filters, frame_limit=0):
 # -----------------------------------------------------------------------------
 
 def main():
-    cfg = Config('config.yaml')
+    cfg = Config(open('config.yaml', 'r'))
 
     filters = []
 
