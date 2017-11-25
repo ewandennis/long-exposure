@@ -16,10 +16,11 @@ pip3 install -r requirements.txt
 python3 long-exposure.py your-video.mp4
 ```
 
-The result is written to `./accum.png`.
+The result is written to `./out/` as a PNG.
 
 ## Running Tests
 
 Run unit tests: `coverage run -m unittest *_test.py`
+
 Generate coverage report: `coverage html`
 
